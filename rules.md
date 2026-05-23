@@ -1,0 +1,14 @@
+- Never hallucinate libraries or APIs that don't exist
+- Never skip error states or loading states on any screen
+- Always use the exact color palette defined in instructions.md
+- Never use plain white (#FFFFFF) as a background color
+- Every list must have a staggered entrance animation
+- Always implement the urgency left-border rule on item cards
+- No barcode scanning anywhere in the app
+- All product data is extracted via Claude Vision from photos
+- Two separate Vision API calls: one per photo
+- Vision failures must never crash the flow — fail gracefully per field
+- Manual entry fallback must always exist alongside any scan feature
+- Never ask the user to write or edit code
+- Build one screen fully before moving to the next
+- Commit a working state before starting each new screen
