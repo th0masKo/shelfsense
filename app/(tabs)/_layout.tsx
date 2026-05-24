@@ -11,10 +11,14 @@ export default function TabLayout() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 0.5,
           borderTopColor: '#E5E3DC',
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
         },
         headerShown: false,
       }}
     >
+      {/* 1. Dashboard (house icon) - default screen */}
       <Tabs.Screen
         name="index"
         options={{
@@ -24,6 +28,7 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/* 2. Pantry (box icon) */}
       <Tabs.Screen
         name="pantry"
         options={{
@@ -33,15 +38,17 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/* 3. Scan (camera icon) */}
       <Tabs.Screen
         name="scan"
         options={{
           title: 'Scan',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="scan-outline" size={size} color={color} />
+            <Ionicons name="camera-outline" size={size} color={color} />
           ),
         }}
       />
+      {/* 4. Recipes (fork icon / restaurant-outline represents fork and knife) */}
       <Tabs.Screen
         name="recipes"
         options={{
@@ -51,12 +58,13 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/* 5. Insights (chart icon) */}
       <Tabs.Screen
         name="insights"
         options={{
           title: 'Insights',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" size={size} color={color} />
+            <Ionicons name="stats-chart-outline" size={size} color={color} />
           ),
         }}
       />

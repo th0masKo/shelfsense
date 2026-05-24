@@ -1,9 +1,10 @@
-import { Text, View } from 'react-native';
+import React from 'react';
+import { View, Text } from 'react-native';
 
 export default function PantryScreen() {
   return (
-    <View className="flex-1 items-center justify-center bg-[#FAFAF8]">
-      <Text className="text-[#2C2C2A] text-lg font-semibold">Pantry</Text>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FAFAF8' }}>
+      <Text style={{ fontSize: 18, color: '#2C2C2A' }}>Pantry</Text>
     </View>
   );
 }
