@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { usePantryItems } from '../../hooks/usePantryItems';
+import {
+  getActiveItems,
+  getComingUpItems,
+  getExpiringSoonCount,
+  getNeedsAttentionItems,
+  hasCriticalExpiry,
+  type DashboardListItem,
+} from '../../lib/dashboard-items';
+import { PantrySkeleton } from '../../components/PantrySkeleton';
+import { ErrorBanner } from '../../components/ErrorBanner';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -28,29 +39,6 @@ const C = {
   redLight:    '#FAEAEA',
 };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface PantryItem {
-  id: string;
-  emoji: string;
-  name: string;
-  quantity: string;
-  category: string;
-  badge: string;
-  urgency: 'critical' | 'warning' | 'good';
-}
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-const NEEDS_ATTENTION: PantryItem[] = [
-  { id: '1', emoji: '🥛', name: 'Milk',    quantity: '1 L',     category: 'Dairy',   badge: 'Tomorrow',    urgency: 'critical' },
-  { id: '2', emoji: '🥬', name: 'Spinach', quantity: '1 bunch', category: 'Produce', badge: '3 days left', urgency: 'critical' },
-  { id: '3', emoji: '🥛', name: 'Yogurt',  quantity: '500 g',   category: 'Dairy',   badge: '5 days left', urgency: 'warning'  },
-];
-
-const COMING_UP: PantryItem[] = [
-  { id: '4', emoji: '🍝', name: 'Pasta',     quantity: '500 g',    category: 'Pantry', badge: '12 days left', urgency: 'good' },
-  { id: '5', emoji: '🫒', name: 'Olive Oil', quantity: '1 bottle', category: 'Pantry', badge: '20 days left', urgency: 'good' },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -59,19 +47,19 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
-function borderColor(u: PantryItem['urgency']): string {
+function borderColor(u: DashboardListItem['urgency']): string {
   if (u === 'critical') return C.red;
   if (u === 'warning')  return C.amber;
   return C.teal;
 }
 
-function badgeBg(u: PantryItem['urgency']): string {
+function badgeBg(u: DashboardListItem['urgency']): string {
   if (u === 'critical') return C.redLight;
   if (u === 'warning')  return C.amberLight;
   return C.tealLight;
 }
 
-function badgeColor(u: PantryItem['urgency']): string {
+function badgeColor(u: DashboardListItem['urgency']): string {
   if (u === 'critical') return C.red;
   if (u === 'warning')  return C.amber;
   return C.teal;
@@ -82,7 +70,7 @@ function AnimatedCard({
   item,
   index,
 }: {
-  item: PantryItem;
+  item: DashboardListItem;
   index: number;
 }) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -147,6 +135,13 @@ function StatCard({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function DashboardScreen() {
   const router = useRouter();
+  const { data: pantryItems = [], isLoading, isError, error, refetch } = usePantryItems();
+
+  const activeItems = useMemo(() => getActiveItems(pantryItems), [pantryItems]);
+  const needsAttention = useMemo(() => getNeedsAttentionItems(pantryItems), [pantryItems]);
+  const comingUp = useMemo(() => getComingUpItems(pantryItems), [pantryItems]);
+  const expiringSoonCount = useMemo(() => getExpiringSoonCount(pantryItems), [pantryItems]);
+  const showBellDot = useMemo(() => hasCriticalExpiry(pantryItems), [pantryItems]);
 
   // FAB spring animation using RN Animated
   const fabScale = useRef(new Animated.Value(0)).current;
@@ -166,6 +161,13 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
+        {isError && (
+          <ErrorBanner
+            message={error instanceof Error ? error.message : 'Could not load pantry items.'}
+            onRetry={() => refetch()}
+          />
+        )}
+
         {/* ── Header ─────────────────────────────────────────────────── */}
         <View style={styles.header}>
           <View>
@@ -174,44 +176,69 @@ export default function DashboardScreen() {
           </View>
           <TouchableOpacity style={styles.bell} activeOpacity={0.7}>
             <Ionicons name="notifications-outline" size={20} color={C.textPrimary} />
-            <View style={styles.bellDot} />
+            {showBellDot && <View style={styles.bellDot} />}
           </TouchableOpacity>
         </View>
 
         {/* ── Stats row ──────────────────────────────────────────────── */}
         <View style={styles.statsRow}>
-          <StatCard value="24"   label="Total items" />
-          <StatCard value="5"    label="Expiring soon" accent />
-          <StatCard value="₹340" label="Saved / month" />
+          <StatCard
+            value={isLoading ? '—' : String(activeItems.length)}
+            label="Total items"
+          />
+          <StatCard
+            value={isLoading ? '—' : String(expiringSoonCount)}
+            label="Expiring soon"
+            accent
+          />
+          <StatCard value="—" label="Saved / month" />
         </View>
 
-        {/* ── Needs Attention ────────────────────────────────────────── */}
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>Needs attention</Text>
-          <TouchableOpacity onPress={() => router.push('/recipes')} activeOpacity={0.6}>
-            <Text style={styles.sectionLink}>Get recipes →</Text>
-          </TouchableOpacity>
-        </View>
-        {NEEDS_ATTENTION.map((item, i) => (
-          <AnimatedCard key={item.id} item={item} index={i} />
-        ))}
+        {isLoading ? (
+          <PantrySkeleton count={3} />
+        ) : (
+          <>
+            {/* ── Needs Attention ────────────────────────────────────────── */}
+            {needsAttention.length > 0 && (
+              <>
+                <View style={styles.sectionRow}>
+                  <Text style={styles.sectionTitle}>Needs attention</Text>
+                  <TouchableOpacity onPress={() => router.push('/recipes')} activeOpacity={0.6}>
+                    <Text style={styles.sectionLink}>Get recipes →</Text>
+                  </TouchableOpacity>
+                </View>
+                {needsAttention.map((item, i) => (
+                  <AnimatedCard key={item.id} item={item} index={i} />
+                ))}
+              </>
+            )}
 
-        {/* ── Coming up ──────────────────────────────────────────────── */}
-        <View style={[styles.sectionRow, { marginTop: 24 }]}>
-          <Text style={styles.sectionTitle}>Coming up</Text>
-        </View>
-        {COMING_UP.map((item, i) => (
-          <AnimatedCard key={item.id} item={item} index={NEEDS_ATTENTION.length + i} />
-        ))}
+            {/* ── Coming up ──────────────────────────────────────────────── */}
+            {comingUp.length > 0 && (
+              <>
+                <View style={[styles.sectionRow, { marginTop: needsAttention.length > 0 ? 24 : 0 }]}>
+                  <Text style={styles.sectionTitle}>Coming up</Text>
+                </View>
+                {comingUp.map((item, i) => (
+                  <AnimatedCard key={item.id} item={item} index={needsAttention.length + i} />
+                ))}
+              </>
+            )}
 
-        {/* Ghost "View all" button */}
-        <TouchableOpacity
-          style={styles.ghostBtn}
-          onPress={() => router.push('/pantry')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.ghostBtnText}>View all 24 items →</Text>
-        </TouchableOpacity>
+            {/* Ghost "View all" button */}
+            {activeItems.length > 0 && (
+              <TouchableOpacity
+                style={styles.ghostBtn}
+                onPress={() => router.push('/pantry')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.ghostBtnText}>
+                  View all {activeItems.length} items →
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
       </ScrollView>
 
       {/* ── FAB ──────────────────────────────────────────────────────── */}

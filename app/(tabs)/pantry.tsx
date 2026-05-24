@@ -11,8 +11,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { colors, fonts } from '../../constants/theme';
-import { MOCK_PANTRY_ITEMS } from '../../data/mockPantryItems';
+import { usePantryItems, PANTRY_ITEMS_QUERY_KEY } from '../../hooks/usePantryItems';
+import { updatePantryItemStatus, deletePantryItem } from '../../lib/pantry-mutations';
+import { PantrySkeleton } from '../../components/PantrySkeleton';
+import { ErrorBanner } from '../../components/ErrorBanner';
 import {
   CATEGORY_CHIPS,
   SORT_OPTIONS,
@@ -37,7 +41,8 @@ function sortLabel(mode: SortMode): string {
 
 export default function PantryScreen() {
   const router = useRouter();
-  const [items, setItems] = useState<PantryItem[]>(MOCK_PANTRY_ITEMS);
+  const queryClient = useQueryClient();
+  const { data: items = [], isLoading, isError, error, refetch } = usePantryItems();
   const [search, setSearch] = useState('');
   const [storageFilter, setStorageFilter] = useState<'all' | StorageLocation>('all');
   const [sortMode, setSortMode] = useState<SortMode>('expiry_asc');
@@ -85,13 +90,15 @@ export default function PantryScreen() {
     setDetailItem(null);
   }, []);
 
-  const updateItemStatus = (id: string, status: ItemStatus) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
+  const updateItemStatus = async (id: string, status: ItemStatus) => {
+    await updatePantryItemStatus(id, status);
+    await queryClient.invalidateQueries({ queryKey: PANTRY_ITEMS_QUERY_KEY });
     closeDetail();
   };
 
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+  const removeItem = async (id: string) => {
+    await deletePantryItem(id);
+    await queryClient.invalidateQueries({ queryKey: PANTRY_ITEMS_QUERY_KEY });
     closeDetail();
   };
 
@@ -113,7 +120,7 @@ export default function PantryScreen() {
     );
   };
 
-  const isEmpty = filtered.length === 0;
+  const isEmpty = !isLoading && !isError && filtered.length === 0;
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
@@ -122,6 +129,13 @@ export default function PantryScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
+        {isError && (
+          <ErrorBanner
+            message={error instanceof Error ? error.message : 'Could not load pantry items.'}
+            onRetry={() => refetch()}
+          />
+        )}
+
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Pantry</Text>
@@ -200,7 +214,9 @@ export default function PantryScreen() {
         </View>
 
         {/* List or empty */}
-        {isEmpty ? (
+        {isLoading ? (
+          <PantrySkeleton count={3} />
+        ) : isEmpty ? (
           <View style={styles.empty}>
             <Text style={styles.emptyEmoji}>🫙</Text>
             <Text style={styles.emptyTitle}>Your pantry is empty</Text>
