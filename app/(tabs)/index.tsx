@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { usePantryItems } from '../../hooks/usePantryItems';
+import { usePantryItems, supabase } from '../../hooks/usePantryItems';
 import {
   getActiveItems,
   getComingUpItems,
@@ -143,6 +143,10 @@ export default function DashboardScreen() {
   const expiringSoonCount = useMemo(() => getExpiringSoonCount(pantryItems), [pantryItems]);
   const showBellDot = useMemo(() => hasCriticalExpiry(pantryItems), [pantryItems]);
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
   // FAB spring animation using RN Animated
   const fabScale = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -174,10 +178,20 @@ export default function DashboardScreen() {
             <Text style={styles.greeting}>{getGreeting()}</Text>
             <Text style={styles.title}>Your pantry</Text>
           </View>
-          <TouchableOpacity style={styles.bell} activeOpacity={0.7}>
-            <Ionicons name="notifications-outline" size={20} color={C.textPrimary} />
-            {showBellDot && <View style={styles.bellDot} />}
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.bell} activeOpacity={0.7}>
+              <Ionicons name="notifications-outline" size={20} color={C.textPrimary} />
+              {showBellDot && <View style={styles.bellDot} />}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.bell}
+              onPress={handleLogout}
+              activeOpacity={0.7}
+              accessibilityLabel="Log out"
+            >
+              <Ionicons name="settings-outline" size={20} color={C.textPrimary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── Stats row ──────────────────────────────────────────────── */}
@@ -276,6 +290,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   greeting: {
     fontSize: 13,
