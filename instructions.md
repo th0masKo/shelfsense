@@ -167,7 +167,8 @@ Clears with an ✕ button when text is present.
 On focus: border color transitions to teal (0.5px → 1.5px teal).
 
 **3. Category filter chips** — horizontally scrollable, no scrollbar
-Pills: All · Fridge · Freezer · Pantry · Produce · Spices · Drinks
+Pills: Vegetables · Fruits · Dairy · Pulses & Grains · Masalas & Spices · 
+Snacks & Packaged · Meat & Seafood · Drinks · Condiments
 Default: "All" selected. Active pill: teal bg, white text.
 Inactive: #F1EFE8 bg, grey text. Pill height 32px, radius 20px.
 
@@ -216,8 +217,8 @@ STEP 1 — Front of product
   Claude Vision call #1 extracts:
     - Product name
     - Brand
-    - Category (maps to: dairy/produce/meat/pantry/
-      freezer/spices/drinks)
+    - Category (maps to: Vegetables · Fruits · Dairy · Pulses & Grains · Masalas & Spices · 
+Snacks & Packaged · Meat & Seafood · Drinks · Condiments)
     - Quantity / weight / volume
     - item_type: "packaged"
 
@@ -228,6 +229,10 @@ STEP 2 — Back or bottom of product
     - Expiry date (handles: DD/MM/YY, MM/YYYY,
       "Best Before", "Use By", "BBE", "Exp")
     - Normalises all formats to YYYY-MM-DD for storage
+    - MFD (Manufacturing Date) + Shelf Life printed separately
+      → compute expiry as: MFD date + shelf life duration
+      → handles formats like "MFD: JAN 2025, Shelf Life: 9 Months"
+      → normalise result to YYYY-MM-DD like all other formats
 
 STEP 3 — Confirm form
   All fields pre-populated from Vision results.
@@ -279,6 +284,28 @@ SHELF_LIFE_DAYS reference table (hardcode in app):
   dal:         { fridge: 0,  freezer: 0,  pantry: 365, counter: 300 }
   atta:        { fridge: 0,  freezer: 0,  pantry: 90,  counter: 60  }
   cooked_food: { fridge: 3,  freezer: 90, pantry: 0,   counter: 0   }
+  methi:          { fridge: 5,  freezer: 30, pantry: 1,  counter: 1  }
+  curry_leaves:   { fridge: 7,  freezer: 30, pantry: 1,  counter: 1  }
+  green_chilli:   { fridge: 14, freezer: 90, pantry: 4,  counter: 3  }
+  ginger:         { fridge: 30, freezer: 90, pantry: 14, counter: 7  }
+  garlic:         { fridge: 30, freezer: 90, pantry: 21, counter: 21 }
+  brinjal:        { fridge: 7,  freezer: 60, pantry: 3,  counter: 3  }
+  okra:           { fridge: 4,  freezer: 60, pantry: 1,  counter: 1  }
+  bitter_gourd:   { fridge: 5,  freezer: 60, pantry: 2,  counter: 2  }
+  coconut:        { fridge: 7,  freezer: 90, pantry: 4,  counter: 3  }
+  guava:          { fridge: 7,  freezer: 60, pantry: 3,  counter: 3  }
+  papaya:         { fridge: 7,  freezer: 60, pantry: 3,  counter: 2  }
+  chikoo:         { fridge: 5,  freezer: 60, pantry: 2,  counter: 2  }
+  pomegranate:    { fridge: 14, freezer: 90, pantry: 7,  counter: 5  }
+  buttermilk:     { fridge: 3,  freezer: 0,  pantry: 0,  counter: 0  }
+  ghee:           { fridge: 90, freezer: 365, pantry: 30, counter: 30 }
+  toor_dal:       { fridge: 0,  freezer: 0,  pantry: 365, counter: 300 }
+  chana:          { fridge: 0,  freezer: 0,  pantry: 365, counter: 300 }
+  rajma:          { fridge: 0,  freezer: 0,  pantry: 365, counter: 300 }
+  moong_dal:      { fridge: 0,  freezer: 0,  pantry: 365, counter: 300 }
+  besan:          { fridge: 0,  freezer: 0,  pantry: 90,  counter: 60 }
+  sooji:          { fridge: 0,  freezer: 0,  pantry: 90,  counter: 60 }
+  poha:           { fridge: 0,  freezer: 0,  pantry: 180, counter: 120 }
 
 STEP 4 — Confirm form
   Same confirm screen as Branch A.
@@ -324,7 +351,7 @@ Teal border if selected (default all selected). Tap to deselect.
 This is the filter for the AI query — tapping chips re-generates suggestions.
 
 **3. Dietary filter chips** — second scrollable row
-"Any · Vegetarian · Vegan · Gluten-free · High-protein · Quick (<20min)"
+"Any · Jain · Vegetarian · Vegan · Gluten-free · High-protein · Quick (<20 min)"
 
 **4. Recipe cards** — vertical list
 Each card: 100% width, #FFFFFF bg, 14px border-radius, 0.5px border.
@@ -339,7 +366,13 @@ Animated "Checking your pantry…" text with cycling dots, DM Sans 13px teal.
 
 ### AI Integration
 Call Claude API (claude-sonnet-4-20250514) with system prompt:
-"You are a recipe chef assistant. Given a list of ingredients, suggest 3 recipes ranked by how many of these ingredients they use, prioritising the ones expiring soonest. Return JSON with fields: title, ingredients_used[], ingredients_needed[], time_minutes, servings, difficulty, instructions_brief."
+"You are an Indian home cooking assistant. Given a list of ingredients, 
+suggest 3 recipes ranked by how many of these ingredients they use, 
+prioritising the ones expiring soonest. Strongly prefer Indian recipes 
+(North Indian, South Indian, street food, tiffin) unless the ingredients 
+clearly suit a non-Indian dish. Return JSON with fields: title, 
+ingredients_used[], ingredients_needed[], time_minutes, servings, 
+difficulty, instructions_brief."
 Pass user's expiring items + selected dietary filter.
 Cache results in React Query for 10 minutes.
 
@@ -364,7 +397,7 @@ Sub-row: "↑ 12% vs last month" in small positive green.
 
 **3. 2-col stat grid** (4 cards in 2x2)
 - Items saved from waste (Fraunces teal number + "items")
-- CO₂ saved (Fraunces number + "kg")
+- Meals saved · X meals (estimated as est_cost / avg_meal_cost)
 - Current pantry value (Fraunces number + "₹ estimated")
 - Avg shelf use (Fraunces number + "% of shelf life used")
 
@@ -386,7 +419,8 @@ Generates a shareable image card using React Native ViewShot.
 - id            uuid          PRIMARY KEY DEFAULT gen_random_uuid()
 - user_id       uuid          NOT NULL REFERENCES auth.users
 - name          text          NOT NULL
-- category      text          NOT NULL  -- dairy/produce/meat/pantry/etc
+- category      text          NOT NULL  -- Vegetables · Fruits · Dairy · Pulses & Grains · Masalas & Spices · 
+Snacks & Packaged · Meat & Seafood · Drinks · Condiments
 - quantity      text          -- "1L", "500g", "3 units"
 - expiry_date   date          NOT NULL
 - added_date    timestamptz   DEFAULT now()

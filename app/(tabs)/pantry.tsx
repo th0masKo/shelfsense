@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import SuccessToast from '../../components/scan/SuccessToast';
 import { useQueryClient } from '@tanstack/react-query';
 import { colors, fonts } from '../../constants/theme';
 import { usePantryItems, PANTRY_ITEMS_QUERY_KEY } from '../../hooks/usePantryItems';
@@ -41,6 +42,15 @@ function sortLabel(mode: SortMode): string {
 
 export default function PantryScreen() {
   const router = useRouter();
+  const { toastMessage: toastMessageParam } = useLocalSearchParams<{ toastMessage?: string }>();
+  const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (typeof toastMessageParam === 'string' && toastMessageParam.length > 0) {
+      setToastMessage(toastMessageParam);
+      router.setParams({ toastMessage: undefined });
+    }
+  }, [toastMessageParam, router]);
   const queryClient = useQueryClient();
   const { data: items = [], isLoading, isError, error, refetch } = usePantryItems();
   const [search, setSearch] = useState('');
@@ -124,6 +134,7 @@ export default function PantryScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+      <SuccessToast message={toastMessage} onDismiss={() => setToastMessage(null)} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}

@@ -1,7 +1,6 @@
-import { useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { mapPantryItemRow } from '../lib/map-pantry-item';
 import type { PantryItemRow } from '../types/database';
 import type { PantryItem } from '../types/pantry';
@@ -55,49 +54,12 @@ async function fetchPantryItems(): Promise<PantryItem[]> {
 }
 
 export function usePantryItems() {
-  const queryClient = useQueryClient();
-
   const query = useQuery({
     queryKey: PANTRY_ITEMS_QUERY_KEY,
     queryFn: fetchPantryItems,
     staleTime: STALE_TIME_MS,
+    refetchInterval: 30_000,
   });
-
-  useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const subscribe = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      channel = supabase
-        .channel(`pantry_items:${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'pantry_items',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            queryClient.invalidateQueries({ queryKey: PANTRY_ITEMS_QUERY_KEY });
-          },
-        )
-        .subscribe();
-    };
-
-    subscribe();
-
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, [queryClient]);
 
   return query;
 }

@@ -4,8 +4,15 @@ import type { ItemStatus, PantryItem, StorageLocation } from '../types/pantry';
 const CATEGORY_EMOJI: Record<string, string> = {
   dairy: '🥛',
   produce: '🥬',
+  vegetables: '🥬',
+  fruits: '🍎',
   meat: '🥩',
+  meat_and_seafood: '🥩',
   pantry: '🫙',
+  pulses_and_grains: '🌾',
+  masalas_and_spices: '🌶️',
+  snacks_and_packaged: '🍪',
+  condiments: '🫙',
   freezer: '🧊',
   spices: '🌶️',
   drinks: '🥤',
@@ -39,7 +46,10 @@ function categoryStorage(category: string): StorageLocation {
 
 function capitalizeCategory(category: string): string {
   if (category.length === 0) return category;
-  return category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
+  return category
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
 }
 
 export function mapPantryItemRow(row: PantryItemRow): PantryItem {
