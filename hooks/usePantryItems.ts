@@ -1,29 +1,15 @@
-import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { mapPantryItemRow } from '../lib/map-pantry-item';
+import { supabase } from '../lib/supabase';
 import type { PantryItemRow } from '../types/database';
 import type { PantryItem } from '../types/pantry';
+import { PANTRY_ITEMS_QUERY_KEY, PANTRY_STALE_TIME_MS } from './pantry-query-keys';
+import { usePantryRealtime } from './usePantryRealtime';
 
-// Loaded from .env.local (EXPO_PUBLIC_* vars are inlined at build time by Expo)
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-const supabaseAnonKey =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
-  process.env.EXPO_PUBLIC_ANON_KEY ??
-  '';
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-});
-
-export const PANTRY_ITEMS_QUERY_KEY = ['pantry_items'] as const;
-
-const STALE_TIME_MS = 5 * 60 * 1000;
+// Re-export supabase so existing callers (app/_layout.tsx, auth.tsx, etc.)
+// don't need to update their import paths.
+export { supabase } from '../lib/supabase';
+export { PANTRY_ITEMS_QUERY_KEY } from './pantry-query-keys';
 
 async function fetchPantryItems(): Promise<PantryItem[]> {
   const {
@@ -54,10 +40,17 @@ async function fetchPantryItems(): Promise<PantryItem[]> {
 }
 
 export function usePantryItems() {
+  const queryClient = useQueryClient();
+
+  // Pass this screen's own invalidation callback — only PANTRY_ITEMS_QUERY_KEY.
+  usePantryRealtime(() => {
+    void queryClient.invalidateQueries({ queryKey: PANTRY_ITEMS_QUERY_KEY, exact: false });
+  });
+
   const query = useQuery({
     queryKey: PANTRY_ITEMS_QUERY_KEY,
     queryFn: fetchPantryItems,
-    staleTime: STALE_TIME_MS,
+    staleTime: PANTRY_STALE_TIME_MS,
     refetchInterval: 30_000,
   });
 

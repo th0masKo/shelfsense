@@ -1,12 +1,4 @@
-import type { DietaryFilterId, ExpiringIngredient, Recipe } from '../types/recipes';
-
-export const MOCK_EXPIRING_INGREDIENTS: ExpiringIngredient[] = [
-  { id: 'spinach', emoji: '🥬', name: 'Spinach' },
-  { id: 'milk', emoji: '🥛', name: 'Milk' },
-  { id: 'tomatoes', emoji: '🍅', name: 'Tomatoes' },
-  { id: 'paneer', emoji: '🧀', name: 'Paneer' },
-  { id: 'coriander', emoji: '🌿', name: 'Coriander' },
-];
+import type { DietaryFilterId, Recipe } from '../types/recipes';
 
 export const DIETARY_FILTER_OPTIONS: { id: DietaryFilterId; label: string }[] = [
   { id: 'any', label: 'Any' },

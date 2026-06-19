@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
   Platform,
   ScrollView,
   StyleSheet,
@@ -10,12 +9,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../constants/theme';
-import {
-  DIETARY_FILTER_OPTIONS,
-  MOCK_EXPIRING_INGREDIENTS,
-  MOCK_RECIPES,
-} from '../../data/mockRecipes';
+import { DIETARY_FILTER_OPTIONS, MOCK_RECIPES } from '../../data/mockRecipes';
+import { useExpiringItems } from '../../hooks/useExpiringItems';
 import type { DietaryFilterId } from '../../types/recipes';
+import { ErrorBanner } from '../ErrorBanner';
 import { AnimatedListItem } from '../pantry/AnimatedListItem';
 import { DietaryFilterChip } from './DietaryFilterChip';
 import { ExpiringIngredientChip } from './ExpiringIngredientChip';
@@ -56,22 +53,58 @@ function LoadingStatusText() {
 }
 
 export function RecipesScreen() {
-  const [loading, setLoading] = useState(false);
-  const [selectedIngredientIds, setSelectedIngredientIds] = useState<Set<string>>(
-    () => new Set(MOCK_EXPIRING_INGREDIENTS.map((item) => item.id)),
-  );
+  const {
+    data: expiringItems = [],
+    isLoading: isLoadingExpiring,
+    isError,
+    error,
+    refetch,
+  } = useExpiringItems();
+
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [selectedIngredientIds, setSelectedIngredientIds] = useState<Set<string>>(new Set());
   const [dietaryFilter, setDietaryFilter] = useState<DietaryFilterId>('any');
   const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(new Set());
+  const knownExpiringIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const currentIdSet = new Set(expiringItems.map((item) => item.id));
+
+    setSelectedIngredientIds((prev) => {
+      if (expiringItems.length === 0) {
+        knownExpiringIdsRef.current = new Set();
+        return new Set();
+      }
+
+      if (knownExpiringIdsRef.current.size === 0 && prev.size === 0) {
+        knownExpiringIdsRef.current = currentIdSet;
+        return new Set(expiringItems.map((item) => item.id));
+      }
+
+      const next = new Set<string>();
+      for (const item of expiringItems) {
+        const wasKnown = knownExpiringIdsRef.current.has(item.id);
+        if (!wasKnown) {
+          next.add(item.id);
+        } else if (prev.has(item.id)) {
+          next.add(item.id);
+        }
+      }
+
+      knownExpiringIdsRef.current = currentIdSet;
+      return next;
+    });
+  }, [expiringItems]);
 
   const selectedNames = useMemo(() => {
     const names = new Set<string>();
-    for (const ingredient of MOCK_EXPIRING_INGREDIENTS) {
+    for (const ingredient of expiringItems) {
       if (selectedIngredientIds.has(ingredient.id)) {
         names.add(ingredient.name);
       }
     }
     return names;
-  }, [selectedIngredientIds]);
+  }, [expiringItems, selectedIngredientIds]);
 
   const filteredRecipes = useMemo(() => {
     if (selectedNames.size === 0) return [];
@@ -107,7 +140,10 @@ export function RecipesScreen() {
     });
   };
 
-  const noIngredientsSelected = selectedIngredientIds.size === 0;
+  const showLoading = isLoadingExpiring || previewLoading;
+  const noExpiringItems = !isLoadingExpiring && expiringItems.length === 0;
+  const noIngredientsSelected =
+    !isLoadingExpiring && expiringItems.length > 0 && selectedIngredientIds.size === 0;
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
@@ -115,6 +151,13 @@ export function RecipesScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
+        {isError && (
+          <ErrorBanner
+            message={error instanceof Error ? error.message : 'Could not load expiring items.'}
+            onRetry={() => refetch()}
+          />
+        )}
+
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.title}>Recipes</Text>
@@ -122,29 +165,33 @@ export function RecipesScreen() {
           </View>
           <TouchableOpacity
             style={styles.devToggle}
-            onPress={() => setLoading((prev) => !prev)}
+            onPress={() => setPreviewLoading((prev) => !prev)}
             activeOpacity={0.7}
           >
-            <Text style={styles.devToggleText}>{loading ? 'Show loaded' : 'Preview loading'}</Text>
+            <Text style={styles.devToggleText}>
+              {previewLoading ? 'Show loaded' : 'Preview loading'}
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.ingredientScroll}
-          style={styles.horizontalStrip}
-        >
-          {MOCK_EXPIRING_INGREDIENTS.map((ingredient) => (
-            <ExpiringIngredientChip
-              key={ingredient.id}
-              emoji={ingredient.emoji}
-              name={ingredient.name}
-              selected={selectedIngredientIds.has(ingredient.id)}
-              onPress={() => toggleIngredient(ingredient.id)}
-            />
-          ))}
-        </ScrollView>
+        {!noExpiringItems && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.ingredientScroll}
+            style={styles.horizontalStrip}
+          >
+            {expiringItems.map((ingredient) => (
+              <ExpiringIngredientChip
+                key={ingredient.id}
+                emoji={ingredient.emoji}
+                name={ingredient.name}
+                selected={selectedIngredientIds.has(ingredient.id)}
+                onPress={() => toggleIngredient(ingredient.id)}
+              />
+            ))}
+          </ScrollView>
+        )}
 
         <ScrollView
           horizontal
@@ -162,10 +209,18 @@ export function RecipesScreen() {
           ))}
         </ScrollView>
 
-        {loading ? (
+        {showLoading ? (
           <View style={styles.loadingBlock}>
             <LoadingStatusText />
             <RecipeCardSkeleton count={3} />
+          </View>
+        ) : noExpiringItems ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyEmoji}>✨</Text>
+            <Text style={styles.emptyTitle}>Nothing expiring soon</Text>
+            <Text style={styles.emptySub}>
+              You&apos;re all caught up — check back later.
+            </Text>
           </View>
         ) : noIngredientsSelected ? (
           <View style={styles.empty}>
@@ -177,7 +232,7 @@ export function RecipesScreen() {
             <TouchableOpacity
               style={styles.emptyCta}
               onPress={() =>
-                setSelectedIngredientIds(new Set(MOCK_EXPIRING_INGREDIENTS.map((i) => i.id)))
+                setSelectedIngredientIds(new Set(expiringItems.map((item) => item.id)))
               }
               activeOpacity={0.85}
             >
