@@ -159,19 +159,20 @@ export function useInsightsData(selectedMonth: Date) {
 
     const { pantryItems, wasteLog, recipeSaves } = query.data;
 
-    // Helper functions for date matching
+    // Helper functions for date matching using UTC to avoid timezone drift
     const isInMonth = (dateStr: string | null | undefined, targetMonth: Date) => {
       if (!dateStr) return false;
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return false;
-      return d.getFullYear() === targetMonth.getFullYear() && d.getMonth() === targetMonth.getMonth();
+      // Compare using UTC month and year so that selectedMonth derived from local time aligns with UTC timestamps
+      return d.getUTCFullYear() === targetMonth.getUTCFullYear() && d.getUTCMonth() === targetMonth.getUTCMonth();
     };
 
     const isInYear = (dateStr: string | null | undefined, targetMonth: Date) => {
       if (!dateStr) return false;
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return false;
-      return d.getFullYear() === targetMonth.getFullYear();
+      return d.getUTCFullYear() === targetMonth.getUTCFullYear();
     };
 
     // 1. pantryValue: sum est_cost of pantry_items where status = 'active'
@@ -218,7 +219,7 @@ export function useInsightsData(selectedMonth: Date) {
       .reduce((sum, item) => sum + (Number(item.est_cost) || 0), 0);
 
     // 6. percentVsLastMonth: compare sum(est_cost) of used items in selectedMonth vs the month before it
-    const lastMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1);
+    const lastMonth = new Date(Date.UTC(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
 
     const thisMonthCost = pantryItems
       .filter(item => item.status === 'used' && isInMonth(item.status_updated_at, selectedMonth))
@@ -235,7 +236,7 @@ export function useInsightsData(selectedMonth: Date) {
     // 7. trend: last 6 months ending at selectedMonth
     const trend: MonthlyTrend[] = [];
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - i, 1);
+      const d = new Date(Date.UTC(selectedMonth.getFullYear(), selectedMonth.getMonth() - i, 1));
       const monthLabel = d.toLocaleString('en-US', { month: 'short' });
 
       const monthWasted = wasteLog
@@ -288,6 +289,13 @@ export function useInsightsData(selectedMonth: Date) {
       },
       trend,
       categoryBreakdown,
+    if (__DEV__) {
+      console.log('[useInsightsData] Debug values', {
+        selectedMonth: selectedMonth.toISOString(),
+        lastMonth: lastMonth.toISOString(),
+        trend,
+      });
+    }
     };
   }, [query.data, selectedMonth]);
 
