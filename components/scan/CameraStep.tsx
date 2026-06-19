@@ -66,8 +66,9 @@ export function CameraStep({
 
   return (
     <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing="back">
-        <View style={styles.overlay}>
+      <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+      <View style={styles.uiLayer} pointerEvents="box-none">
+        <View style={styles.overlay} pointerEvents="none">
           <Text style={styles.overlayText}>{overlayText}</Text>
           {thumbnailUri != null && (
             <Image source={{ uri: thumbnailUri }} style={styles.thumbnail} />
@@ -83,7 +84,7 @@ export function CameraStep({
             <View style={[styles.shutterInner, isCapturing && styles.shutterDisabled]} />
           </TouchableOpacity>
         </View>
-      </CameraView>
+      </View>
     </View>
   );
 }
@@ -92,9 +93,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+    position: 'relative',
   },
   camera: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+  },
+  uiLayer: {
+    ...StyleSheet.absoluteFillObject,
   },
   overlay: {
     flex: 1,
