@@ -75,9 +75,9 @@ export function RecipeCard({ recipe, saved, onSavePress, onFullRecipePress }: Re
             )}
 
             <View style={styles.tags}>
-              {allIngredients.map((ing) => (
+              {allIngredients.map((ing, idx) => (
                 <View
-                  key={`${recipe.id}-${ing.name}`}
+                  key={`${recipe.id}-${ing.matched ? 'used' : 'needed'}-${idx}-${ing.name}`}
                   style={[styles.tag, ing.matched ? styles.tagMatched : styles.tagMissing]}
                 >
                   <Text

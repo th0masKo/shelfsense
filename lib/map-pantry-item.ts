@@ -34,7 +34,7 @@ function toDateOnly(value: string): string {
   return value.slice(0, 10);
 }
 
-function categoryEmoji(category: string): string {
+export function categoryEmoji(category: string): string {
   const key = category.toLowerCase();
   return CATEGORY_EMOJI[key] ?? '🫙';
 }

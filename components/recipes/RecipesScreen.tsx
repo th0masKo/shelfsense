@@ -39,12 +39,14 @@ function LoadingStatusText() {
 
 export function RecipesScreen() {
   const {
-    data: expiringItems = [],
+    data: expiringItemsData,
     isLoading: isLoadingExpiring,
     isError,
     error,
     refetch,
   } = useExpiringItems();
+
+  const expiringItems = useMemo(() => expiringItemsData ?? [], [expiringItemsData]);
 
   const [selectedIngredientIds, setSelectedIngredientIds] = useState<Set<string>>(new Set());
   const [dietaryFilter, setDietaryFilter] = useState<DietaryFilterId>('any');
@@ -57,7 +59,7 @@ export function RecipesScreen() {
     setSelectedIngredientIds((prev) => {
       if (expiringItems.length === 0) {
         knownExpiringIdsRef.current = new Set();
-        return new Set();
+        return prev.size === 0 ? prev : new Set();
       }
 
       if (knownExpiringIdsRef.current.size === 0 && prev.size === 0) {
@@ -76,6 +78,11 @@ export function RecipesScreen() {
       }
 
       knownExpiringIdsRef.current = currentIdSet;
+
+      // Check if next and prev are identical to avoid unnecessary state update!
+      if (prev.size === next.size && [...prev].every((x) => next.has(x))) {
+        return prev;
+      }
       return next;
     });
   }, [expiringItems]);

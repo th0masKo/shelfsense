@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,12 @@ import {
   Share,
   Alert,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 import { colors } from '../../constants/theme';
-import { mockInsightsData, MOCK_MONTHS } from '../../mocks/mockInsightsData';
+import { useInsightsData, formatMonthYear } from '../../hooks/useInsightsData';
 import MonthPicker from '../../components/insights/MonthPicker';
 import HeroStatCard from '../../components/insights/HeroStatCard';
 import StatGrid from '../../components/insights/StatGrid';
@@ -20,27 +21,32 @@ import CategoryBreakdown from '../../components/insights/CategoryBreakdown';
 import ShareButton from '../../components/insights/ShareButton';
 import InsightsSkeleton from '../../components/insights/InsightsSkeleton';
 
+const AVAILABLE_MONTHS = (() => {
+  const months: Date[] = [];
+  const now = new Date();
+  for (let i = 0; i < 6; i++) {
+    months.push(new Date(now.getFullYear(), now.getMonth() - i, 1));
+  }
+  return months;
+})();
+
 export default function InsightsScreen() {
-  const [selectedMonth, setSelectedMonth] = useState(MOCK_MONTHS[0]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [selectedMonthDate, setSelectedMonthDate] = useState(AVAILABLE_MONTHS[0]);
   const [isSharing, setIsSharing] = useState(false);
   const shareViewRef = useRef<View>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
+  const { data, isLoading, isError, error, refetch } = useInsightsData(selectedMonthDate);
 
   const cycleMonth = () => {
-    const currentIndex = MOCK_MONTHS.indexOf(selectedMonth);
-    const nextIndex = (currentIndex + 1) % MOCK_MONTHS.length;
-    setSelectedMonth(MOCK_MONTHS[nextIndex]);
+    const currentIndex = AVAILABLE_MONTHS.findIndex(
+      d => d.getFullYear() === selectedMonthDate.getFullYear() && d.getMonth() === selectedMonthDate.getMonth()
+    );
+    const nextIndex = (currentIndex + 1) % AVAILABLE_MONTHS.length;
+    setSelectedMonthDate(AVAILABLE_MONTHS[nextIndex]);
   };
 
   const handleShare = async () => {
-    if (isSharing) return;
+    if (isSharing || !data) return;
     setIsSharing(true);
     try {
       // Small delay to ensure button animation state settles before capture
@@ -51,30 +57,56 @@ export default function InsightsScreen() {
         quality: 0.9,
       });
 
+      const selectedMonthStr = formatMonthYear(selectedMonthDate);
       await Share.share(
         Platform.OS === 'ios'
           ? {
               url: uri,
-              message: `Check out my ShelfSense pantry insights report for ${selectedMonth}!`,
+              message: `Check out my ShelfSense pantry insights report for ${selectedMonthStr}!`,
             }
           : {
-              message: `Check out my ShelfSense pantry insights report for ${selectedMonth}! ${uri}`,
+              message: `Check out my ShelfSense pantry insights report for ${selectedMonthStr}! ${uri}`,
             }
       );
-    } catch (error) {
-      console.error('Failed to capture and share screen:', error);
+    } catch (err) {
+      console.error('Failed to capture and share screen:', err);
       Alert.alert('Sharing Error', 'Unable to generate shareable image.');
     } finally {
       setIsSharing(false);
     }
   };
 
-  // Get active month's mock data
-  const data = mockInsightsData[selectedMonth];
-
   if (isLoading) {
     return <InsightsSkeleton />;
   }
+
+  if (isError || !data) {
+    return (
+      <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.emptyEmoji}>⚠️</Text>
+          <Text style={styles.emptyTitle}>Couldn't load insights</Text>
+          <Text style={styles.emptySub}>
+            {error instanceof Error ? error.message : 'Please check your connection and try again.'}
+          </Text>
+          {__DEV__ && error != null && (
+            <Text style={styles.debugError}>
+              {JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}
+            </Text>
+          )}
+          <TouchableOpacity
+            style={styles.emptyCta}
+            onPress={() => refetch()}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.emptyCtaText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const selectedMonthStr = formatMonthYear(selectedMonthDate);
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
@@ -90,7 +122,7 @@ export default function InsightsScreen() {
           {/* Header row */}
           <View style={styles.header}>
             <Text style={styles.title}>Insights</Text>
-            <MonthPicker selectedMonth={selectedMonth} onPress={cycleMonth} />
+            <MonthPicker selectedMonth={selectedMonthStr} onPress={cycleMonth} />
           </View>
 
           {/* Hero Card */}
@@ -117,7 +149,7 @@ export default function InsightsScreen() {
         {/* Share Button (Outside captured view, inside scrollview) */}
         <View style={styles.buttonContainer}>
           <ShareButton
-            month={selectedMonth}
+            month={selectedMonthStr}
             onPress={handleShare}
             isSharing={isSharing}
           />
@@ -158,4 +190,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 12,
   },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: colors.bg,
+  },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySub: {
+    fontSize: 14,
+    color: colors.textGrey,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  emptyCta: {
+    height: 54,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+    backgroundColor: colors.teal,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.teal,
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: { elevation: 3 },
+    }),
+  },
+  emptyCtaText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
 });
+
