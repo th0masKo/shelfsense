@@ -1,3 +1,4 @@
+const { colors } = require('./constants/colors');
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   // NOTE: Target components/ and app/ directories
@@ -6,22 +7,18 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        brand: {
-          teal: '#1D9E75',
-          amber: '#BA7517',
-          red: '#A32D2D',
-          blue: '#2F5FA0',
-        },
-        background: {
-          primary: '#FAFAF8',
-          secondary: '#F1EFE8',
-        },
-        text: {
-          primary: '#2C2C2A',
-          secondary: '#888780',
-        },
-        border: '#E5E3DC',
-      }
+        canvas: colors.background.primary,
+        paper: colors.background.secondary,
+        surface: colors.background.surface,
+        ink: colors.text.primary,
+        'ink-light': colors.text.secondary,
+        hairline: colors.border,
+        teal: colors.accent.teal,
+        'teal-deep': colors.accent.tealDeep,
+        amber: colors.accent.amber,
+        red: colors.accent.red,
+        blue: colors.accent.blue,
+      },
     },
   },
   plugins: [],
