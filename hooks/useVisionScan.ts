@@ -4,6 +4,10 @@ import {
   type PantryCategoryId,
 } from '../constants/scanCategories';
 
+// SET TO false BEFORE BUYING CREDITS / FOR PRODUCTION
+const DEV_MOCK_VISION_RESPONSE = true;
+
+const MOCK_VISION_DELAY_MS = 1500;
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const VISION_MODEL = 'claude-haiku-4-5-20251001';
 
@@ -64,6 +68,17 @@ function readStringField(obj: Record<string, unknown>, key: string): string | nu
 }
 
 async function callVisionApi(base64: string, systemPrompt: string): Promise<string | null> {
+  if (DEV_MOCK_VISION_RESPONSE) {
+    await mockVisionDelay(MOCK_VISION_DELAY_MS);
+    if (systemPrompt === FRONT_SYSTEM_PROMPT) {
+      return buildMockFrontVisionText();
+    }
+    if (systemPrompt === BACK_SYSTEM_PROMPT) {
+      return buildMockBackVisionText();
+    }
+    return null;
+  }
+
   const apiKey = getApiKey();
   if (!apiKey) return null;
 
@@ -121,8 +136,42 @@ function inferItemType(
 
 function parseExpiryDate(raw: string | null): string | null {
   if (raw == null) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const trimmed = raw.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  const dmyMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (dmyMatch) {
+    const day = Number.parseInt(dmyMatch[1], 10);
+    const month = Number.parseInt(dmyMatch[2], 10);
+    let year = Number.parseInt(dmyMatch[3], 10);
+    if (year < 100) year += 2000;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
   return null;
+}
+
+function mockVisionDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function buildMockFrontVisionText(): string {
+  return JSON.stringify({
+    name: 'Amul Taaza Toned Milk',
+    brand: 'Amul',
+    category: 'dairy',
+    quantity: '1L',
+  });
+}
+
+function buildMockBackVisionText(): string {
+  return JSON.stringify({
+    expiry_date: '15/08/26',
+  });
 }
 
 export function useVisionScan() {

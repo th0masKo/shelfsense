@@ -9,8 +9,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../constants/theme';
-import { DIETARY_FILTER_OPTIONS, MOCK_RECIPES } from '../../data/mockRecipes';
+import { DIETARY_FILTER_OPTIONS } from '../../data/mockRecipes';
 import { useExpiringItems } from '../../hooks/useExpiringItems';
+import { useRecipeSuggestions } from '../../hooks/useRecipeSuggestions';
 import type { DietaryFilterId } from '../../types/recipes';
 import { ErrorBanner } from '../ErrorBanner';
 import { AnimatedListItem } from '../pantry/AnimatedListItem';
@@ -18,22 +19,6 @@ import { DietaryFilterChip } from './DietaryFilterChip';
 import { ExpiringIngredientChip } from './ExpiringIngredientChip';
 import { RecipeCard } from './RecipeCard';
 import { RecipeCardSkeleton } from './RecipeCardSkeleton';
-
-function matchesDietaryFilter(recipeDietary: DietaryFilterId[], filter: DietaryFilterId): boolean {
-  if (filter === 'any') return true;
-  if (filter === 'quick') return recipeDietary.includes('quick');
-  return recipeDietary.includes(filter);
-}
-
-function recipeUsesSelectedIngredients(
-  recipeIngredientNames: string[],
-  selectedNames: Set<string>,
-): boolean {
-  const normalizedSelected = [...selectedNames].map((n) => n.toLowerCase());
-  return recipeIngredientNames.some((name) =>
-    normalizedSelected.includes(name.toLowerCase()),
-  );
-}
 
 function LoadingStatusText() {
   const [dots, setDots] = useState('');
@@ -61,7 +46,6 @@ export function RecipesScreen() {
     refetch,
   } = useExpiringItems();
 
-  const [previewLoading, setPreviewLoading] = useState(false);
   const [selectedIngredientIds, setSelectedIngredientIds] = useState<Set<string>>(new Set());
   const [dietaryFilter, setDietaryFilter] = useState<DietaryFilterId>('any');
   const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(new Set());
@@ -96,25 +80,22 @@ export function RecipesScreen() {
     });
   }, [expiringItems]);
 
-  const selectedNames = useMemo(() => {
-    const names = new Set<string>();
+  const selectedIngredientNames = useMemo(() => {
+    const names: string[] = [];
     for (const ingredient of expiringItems) {
       if (selectedIngredientIds.has(ingredient.id)) {
-        names.add(ingredient.name);
+        names.push(ingredient.name);
       }
     }
     return names;
   }, [expiringItems, selectedIngredientIds]);
 
-  const filteredRecipes = useMemo(() => {
-    if (selectedNames.size === 0) return [];
-
-    return MOCK_RECIPES.filter((recipe) => {
-      const usesSelected = recipeUsesSelectedIngredients(recipe.ingredients_used, selectedNames);
-      const matchesDiet = matchesDietaryFilter(recipe.dietary, dietaryFilter);
-      return usesSelected && matchesDiet;
-    });
-  }, [selectedNames, dietaryFilter]);
+  const {
+    data: recipes = [],
+    isFetching: isFetchingRecipes,
+    isError: isRecipeError,
+    refetch: refetchRecipes,
+  } = useRecipeSuggestions(selectedIngredientNames, dietaryFilter);
 
   const toggleIngredient = (id: string) => {
     setSelectedIngredientIds((prev) => {
@@ -140,7 +121,12 @@ export function RecipesScreen() {
     });
   };
 
-  const showLoading = isLoadingExpiring || previewLoading;
+  const showExpiringLoading = isLoadingExpiring;
+  const showRecipeLoading =
+    !isLoadingExpiring &&
+    selectedIngredientNames.length > 0 &&
+    isFetchingRecipes;
+  const showLoading = showExpiringLoading || showRecipeLoading;
   const noExpiringItems = !isLoadingExpiring && expiringItems.length === 0;
   const noIngredientsSelected =
     !isLoadingExpiring && expiringItems.length > 0 && selectedIngredientIds.size === 0;
@@ -163,15 +149,6 @@ export function RecipesScreen() {
             <Text style={styles.title}>Recipes</Text>
             <Text style={styles.subhead}>Based on what&apos;s expiring soon</Text>
           </View>
-          <TouchableOpacity
-            style={styles.devToggle}
-            onPress={() => setPreviewLoading((prev) => !prev)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.devToggleText}>
-              {previewLoading ? 'Show loaded' : 'Preview loading'}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {!noExpiringItems && (
@@ -239,7 +216,19 @@ export function RecipesScreen() {
               <Text style={styles.emptyCtaText}>Select all</Text>
             </TouchableOpacity>
           </View>
-        ) : filteredRecipes.length === 0 ? (
+        ) : isRecipeError && !isFetchingRecipes ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyEmoji}>😕</Text>
+            <Text style={styles.emptyTitle}>Couldn&apos;t load recipes right now</Text>
+            <TouchableOpacity
+              style={styles.emptyCta}
+              onPress={() => void refetchRecipes()}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.emptyCtaText}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : recipes.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyEmoji}>🔍</Text>
             <Text style={styles.emptyTitle}>No recipes match</Text>
@@ -256,7 +245,7 @@ export function RecipesScreen() {
           </View>
         ) : (
           <View style={styles.recipeList}>
-            {filteredRecipes.map((recipe, index) => (
+            {recipes.map((recipe, index) => (
               <AnimatedListItem key={recipe.id} index={index}>
                 <RecipeCard
                   recipe={recipe}
@@ -305,20 +294,6 @@ const styles = StyleSheet.create({
   },
   subhead: {
     fontSize: 13,
-    color: colors.textGrey,
-    fontFamily: fonts.body,
-  },
-  devToggle: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: colors.secondary,
-    borderWidth: 0.5,
-    borderColor: colors.border,
-  },
-  devToggleText: {
-    fontSize: 11,
-    fontWeight: '500',
     color: colors.textGrey,
     fontFamily: fonts.body,
   },
